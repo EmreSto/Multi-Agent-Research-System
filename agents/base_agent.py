@@ -7,6 +7,7 @@ from config.agent_config import MODELS, PRICING, AGENT_CONFIG
 PROJECT_ROOT = Path(__file__).parent.parent 
 skills_path = PROJECT_ROOT / "skills" 
 logs_path = PROJECT_ROOT / "logs" 
+logs_path.mkdir(exist_ok=True)
 context_path = PROJECT_ROOT / "context"
 
 
