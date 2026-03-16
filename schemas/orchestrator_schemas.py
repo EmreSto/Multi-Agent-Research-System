@@ -11,3 +11,10 @@ class RoutingPlan(BaseModel):
     synthesis_strategy: str
     completion_criteria: str
 
+
+class RoutingPlanSimple(BaseModel):
+    mode: Literal["simple"]
+    agent: str
+    reasoning: str
+
+
