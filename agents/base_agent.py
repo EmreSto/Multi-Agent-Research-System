@@ -139,6 +139,7 @@ def call_agent(agent_name, user_message):
    )
 
    return {
+      "agent": agent_name,
        "text": response_text,
        "thinking": thinking_text,
        "model": config["model"],
