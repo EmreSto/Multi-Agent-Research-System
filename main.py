@@ -1,5 +1,7 @@
 from agents.base_agent import call_agent
 from agents.orchestrator import check_simple_mode, execute_query
+# from tools import ToolRegistry
+# from tools.research_tools import register_research_tools
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -7,6 +9,11 @@ from time import time
 from pathlib import Path
 
 console = Console()
+
+# Initialize tool registry (uncomment when arXiv rate limit lifts)
+# registry = ToolRegistry()
+# register_research_tools(registry)
+registry = None
 
 def save_response_to_file(response):
     output_dir = Path("outputs")
@@ -45,7 +52,7 @@ def main():
             if user_input.startswith("@"):
                 query, agent = check_simple_mode(user_input)
                 history = agent_histories.get(agent, [])
-                result = call_agent(agent, query, history)
+                result = call_agent(agent, query, history, registry=registry)
 
                 while True:
                     console.print(Panel(
@@ -59,10 +66,10 @@ def main():
                     if follow_up.lower() == "exit":
                         break
 
-                    result = call_agent(agent, follow_up, agent_histories[agent])
+                    result = call_agent(agent, follow_up, agent_histories[agent], registry=registry)
 
             else:
-                result = execute_query(user_input)
+                result = execute_query(user_input, registry=registry)
                 if isinstance(result, dict):
                     console.print(Panel(
                         Markdown(result["text"]),

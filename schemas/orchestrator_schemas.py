@@ -18,3 +18,13 @@ class RoutingPlanSimple(BaseModel):
     reasoning: str
 
 
+# Anti-hallucination Layer 0: Source anchoring
+# Every claim must carry source metadata. Schema validation
+# fails if required fields are missing — structural enforcement.
+class SourcedClaim(BaseModel):
+    claim: str
+    source_type: Literal["VERIFIED", "HIGH_CONFIDENCE", "RECALLED"]
+    source_document: Optional[str] = None
+    source_page: Optional[int] = None
+    source_quote: Optional[str] = None
+    confidence: float

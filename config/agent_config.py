@@ -39,37 +39,51 @@ AGENT_CONFIG = {
  "orchestrator":{
    "model":MODELS["sonnet"],
    "max_tokens":2048,
-   "thinking" : None, #Only routes so no deep thinking needed.
+   "thinking": None,
+   "tool_categories": [],
+   "max_tool_iterations": 3,
  },
  "mathematician":{
   "model":MODELS["opus"],
   "max_tokens":8192,
   "thinking":{"type":"adaptive"},
+  "tool_categories": [],
+  "max_tool_iterations": 5,
  },
  "statistician":{
   "model":MODELS["opus"],
   "max_tokens":8192,
   "thinking":{"type":"adaptive"},
+  "tool_categories": ["code_execution"],
+  "max_tool_iterations": 10,
  },
  "ml_engineer":{
   "model":MODELS["sonnet"],
   "max_tokens":4096,
   "thinking":None,
+  "tool_categories": ["code_execution", "finance"],
+  "max_tool_iterations": 10,
  },
- "quant_specialist":{
+ "domain_expert":{
   "model":MODELS["sonnet"],
   "max_tokens":4096,
   "thinking":{"type":"adaptive"},
+  "tool_categories": [],
+  "max_tool_iterations": 5,
  },
  "code_optimizer":{
   "model":MODELS["haiku"],
   "max_tokens":2048,
   "thinking": None,
+  "tool_categories": ["code_execution"],
+  "max_tool_iterations": 10,
  },
  "teacher":{
   "model":MODELS["opus"],
   "max_tokens":8192,
   "thinking":{"type":"adaptive"},
+  "tool_categories": ["research", "memory", "visualization", "code_execution"],
+  "max_tool_iterations": 15,
  },
 }
 #Cost Guardrails 

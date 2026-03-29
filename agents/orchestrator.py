@@ -1,7 +1,9 @@
+import re
+
 from anthropic import Anthropic
 from dotenv import load_dotenv
 from agents.base_agent import call_agent, load_skill
-from schemas.orchestrator_schemas import RoutingPlan, RoutingPlanSimple
+from schemas.orchestrator_schemas import RoutingPlan
 from config.agent_config import AGENT_CONFIG
 
 
@@ -40,21 +42,134 @@ def check_simple_mode(user_message):
             return None, None
     else:
         return None, None
-        
+    
+def should_stop_pipeline(call_result):
+    """Layer 4: Check if pipeline should halt due to RECALLED claims.
 
-def execute_query(user_message):
+    Dual check: structured confidence_summary (primary) + regex fallback.
+    """
+    # Primary: use Layer 0 confidence summary from call_agent()
+    summary = call_result.get("confidence_summary", {})
+    if summary.get("has_recalled", False):
+        return True
+
+    # Fallback: regex scan for RECALLED markers in raw text
+    text = call_result.get("text", "")
+    if re.search(r"\[RECALLED\b|RECALLED\s*[—–-]", text, re.IGNORECASE):
+        return True
+
+    return False
+
+def validate_routing_plan(routing_plan) -> tuple[bool, str]:
+    """Layer 8: Pre-dispatch validation of routing plan.
+
+    Checks agent existence and hard routing rules before any agent is called.
+    """
+    valid_agents = set(AGENT_CONFIG.keys()) - {"orchestrator"}
+
+    for agent in routing_plan.agents:
+        if agent not in valid_agents:
+            return False, (
+                f"Unknown agent '{agent}' in routing plan. "
+                f"Valid agents: {sorted(valid_agents)}"
+            )
+
+    # Hard rule: mathematician before statistician
+    agents = routing_plan.agents
+    if "mathematician" in agents and "statistician" in agents:
+        if agents.index("mathematician") > agents.index("statistician"):
+            return False, (
+                "Routing rule violation: mathematician must run before statistician."
+            )
+
+    # Hard rule: code_optimizer never runs alone
+    if "code_optimizer" in agents and len(agents) == 1:
+        return False, (
+            "Routing rule violation: code_optimizer cannot run alone — "
+            "must be paired with at least one domain agent."
+        )
+
+    return True, ""
+
+
+def execute_query(user_message, registry=None):
     query, agent_name = check_simple_mode(user_message)
     if agent_name:
-        return call_agent(agent_name, query)
-    
+        return call_agent(agent_name, query, registry=registry)
+
     routing_plan = get_routing_plan(user_message)
+
+    # Layer 8: validate routing plan before dispatching
+    valid, error_msg = validate_routing_plan(routing_plan)
+    if not valid:
+        return [{
+            "agent": "system",
+            "text": f"Routing validation failed: {error_msg}",
+            "thinking": None,
+            "model": None,
+            "cost": 0,
+            "latency": 0,
+            "history": [],
+            "tool_iterations": 0,
+            "confidence_summary": {"verified": 0, "high_confidence": 0, "recalled": 0, "has_recalled": False},
+        }]
+
     results = []
     for agent in routing_plan.agents:
-        call_result = call_agent(agent ,user_message)
+        call_result = call_agent(agent, user_message, registry=registry)
         results.append(call_result)
-        if routing_plan.pass_forward:
-            user_message = user_message + "\n\n<previous_agent_output>\n" + call_result["text"] + "\n</previous_agent_output>"
-    return results
 
+        if should_stop_pipeline(call_result):
+            confidence = call_result.get("confidence_summary", {})
+            results.append({
+                "agent": "system",
+                "text": (
+                    f"Pipeline halted: {call_result['agent']} returned RECALLED claims "
+                    f"that need source verification before proceeding. "
+                    f"Confidence breakdown: {confidence}"
+                ),
+                "thinking": None,
+                "model": None,
+                "cost": 0,
+                "latency": 0,
+                "history": [],
+                "tool_iterations": 0,
+                "confidence_summary": confidence,
+            })
+            break
+
+        # Layer 8: detect agent domain rejection
+        if "[NOT MY DOMAIN]" in call_result.get("text", ""):
+            results.append({
+                "agent": "system",
+                "text": (
+                    f"Agent '{agent}' rejected this query as outside its domain. "
+                    f"Response: {call_result['text'][:500]}"
+                ),
+                "thinking": None,
+                "model": None,
+                "cost": 0,
+                "latency": 0,
+                "history": [],
+                "tool_iterations": 0,
+                "confidence_summary": {"verified": 0, "high_confidence": 0, "recalled": 0, "has_recalled": False},
+            })
+            break
+
+        if routing_plan.pass_forward:
+            confidence = call_result.get("confidence_summary", {})
+            warning = ""
+            if confidence.get("high_confidence", 0) > 0:
+                warning = (
+                    f"\n<confidence_warning>Upstream output contains "
+                    f"{confidence['high_confidence']} HIGH_CONFIDENCE claim(s) "
+                    f"— not fully verified against source.</confidence_warning>\n"
+                )
+            user_message = (
+                user_message + "\n\n<previous_agent_output>"
+                + warning + "\n" + call_result["text"]
+                + "\n</previous_agent_output>"
+            )
+    return results
 
 
