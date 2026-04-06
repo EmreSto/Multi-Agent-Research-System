@@ -86,6 +86,14 @@ AGENT_CONFIG = {
   "max_tool_iterations": 15,
  },
 }
+#RCS CONFIG
+RCS_CONFIG = {
+    "summary_length": 200,
+    "relevance_threshold": 7,
+    "top_k": 15,
+    "max_workers": 15,
+}
+
 #Cost Guardrails 
 #Safety limits to prevent runaway spending during development.
 
