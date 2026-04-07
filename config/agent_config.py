@@ -82,7 +82,7 @@ AGENT_CONFIG = {
   "model":MODELS["opus"],
   "max_tokens":8192,
   "thinking":{"type":"adaptive"},
-  "tool_categories": ["research", "memory", "visualization", "code_execution"],
+  "tool_categories": ["research", "memory", "visualization", "code_execution", "retrieval"],
   "max_tool_iterations": 15,
  },
 }
@@ -91,7 +91,7 @@ RCS_CONFIG = {
     "summary_length": 200,
     "relevance_threshold": 7,
     "top_k": 15,
-    "max_workers": 15,
+    "max_workers": 5,
 }
 
 #Cost Guardrails 
