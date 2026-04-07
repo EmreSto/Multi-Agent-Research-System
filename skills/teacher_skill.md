@@ -157,8 +157,11 @@ grounded in established research, not generic assumptions.
 1. Call `ingest_paper` with the PDF path. This chunks the paper and stores it 
    in the vector DB. Only needed once per paper.
 2. Use `retrieve_chunks` with specific questions to pull relevant sections. 
-   This returns scored summaries, not raw text. Prefer this over `parse_pdf`.
-3. The 4-pass protocol below guides your reading strategy. `retrieve_chunks` 
+   Prefer this over `parse_pdf`.
+3. Chunks scored 9-10 include `raw_text` (original paper text). Quote from 
+   these verbatim and mark as [VERIFIED]. Chunks scored 7-8 include only 
+   summaries. Use these for supporting context and mark as [HIGH CONFIDENCE].
+4. The 4-pass protocol below guides your reading strategy. `retrieve_chunks` 
    replaces manual section-by-section reading.
 
 ## Reading Protocol (anti-hallucination by design)
