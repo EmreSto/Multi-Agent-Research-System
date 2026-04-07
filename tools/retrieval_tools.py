@@ -185,6 +185,7 @@ def _score_chunk_with_haiku(query: str, chunk_content: str, chunk_metadata: dict
             "paper_id": chunk_metadata.get("paper_id", ""),
             "chunk_index": chunk_metadata.get("chunk_index", 0),
             "has_equations": chunk_metadata.get("has_equations", False),
+            "raw_text": chunk_content,
         }
     except Exception as e:
         logging.warning(f"RCS scoring failed: {e}")
@@ -218,6 +219,9 @@ def retrieve_chunks(tool_input: dict) -> str:
         return json.dumps({"status": "no_relevant_chunks", "message": f"No chunks passed the relevance threshold of {RCS_CONFIG['relevance_threshold']}."})
 
     scored_chunks = sorted(scored_chunks, key= lambda x: x["relevance_score"], reverse=True)
+    for chunk in scored_chunks:
+        if chunk["relevance_score"] < 9:
+            chunk.pop("raw_text", None)
     front = scored_chunks[::2]
     back = scored_chunks[1::2]
     ordered = front + list(reversed(back))
