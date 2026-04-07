@@ -1,19 +1,20 @@
 from agents.base_agent import call_agent
 from agents.orchestrator import check_simple_mode, execute_query
-# from tools import ToolRegistry
-# from tools.research_tools import register_research_tools
+from tools import ToolRegistry
+from tools.research_tools import register_research_tools
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
 from time import time
 from pathlib import Path
+from tools.retrieval_tools import register_retrieval_tools
 
 console = Console()
 
-# Initialize tool registry (uncomment when arXiv rate limit lifts)
-# registry = ToolRegistry()
-# register_research_tools(registry)
-registry = None
+# Initialize tool registry
+registry = ToolRegistry()
+register_research_tools(registry)
+register_retrieval_tools(registry)
 
 def save_response_to_file(response):
     output_dir = Path("outputs")
