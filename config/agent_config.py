@@ -28,12 +28,7 @@ PRICING = {
    "cache_read":0.10,
   },
 }
-#PER AGENT CONFIG
-#Each agent gets:
-# Model -> Which model to use. 
-# max_tokens -> Max output tokens.
-# thinking -> adaptive thinking (None = disabled).
-#Each agent uses models that is optimal for the work that the agent will be doing.
+#Agent config
 
 AGENT_CONFIG = {
  "orchestrator":{
@@ -94,8 +89,7 @@ RCS_CONFIG = {
     "max_workers": 5,
 }
 
-#Cost Guardrails 
-#Safety limits to prevent runaway spending during development.
+#Cost guardrails
 
 MONTHLY_BUDGET_USD = 30.0     
 PER_SESSION_WARN_USD = 2.0

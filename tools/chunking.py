@@ -6,10 +6,14 @@ from schemas.chunk_schemas import Chunk
 
 logger = logging.getLogger(__name__)
 
+#Token estimation
+
 def _estimate_tokens(text: str) -> int:
     word_count = len(re.findall(r'\w+', text))
     return math.ceil(word_count * 1.3)
 
+
+#Equation detection
 
 def _contains_equation(text: str) -> bool:
     for line in text.splitlines():
@@ -18,6 +22,8 @@ def _contains_equation(text: str) -> bool:
             return True
     return False
 
+
+#Section splitting
 
 def _split_into_sections(markdown_text: str) -> list[Chunk]:
     sections = []
@@ -52,6 +58,8 @@ def _split_into_sections(markdown_text: str) -> list[Chunk]:
             token_count=_estimate_tokens("\n".join(current_section)),
         ))
     return sections
+
+#Sub-splitting
 
 def _subsplit_large_sections(sections: list[Chunk], max_tokens: int) -> list[Chunk]:
     subsplit_sections = []

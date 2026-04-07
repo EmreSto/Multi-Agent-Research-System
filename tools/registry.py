@@ -7,13 +7,9 @@ from config.agent_config import AGENT_CONFIG
 logger = logging.getLogger(__name__)
 
 
-class ToolRegistry:
-    """Central registry for all agent tools.
+#Tool registry
 
-    Tools are registered under categories. Agents declare which categories
-    they can access in AGENT_CONFIG. The registry builds the tools list
-    for API calls and dispatches execution.
-    """
+class ToolRegistry:
 
     def __init__(self):
         self._tools: dict[str, dict[str, Any]] = {}       # name -> {schema, handler, category}

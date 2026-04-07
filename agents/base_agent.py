@@ -11,18 +11,18 @@ from config.agent_config import MODELS, PRICING, AGENT_CONFIG
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).parent.parent 
-skills_path = PROJECT_ROOT / "skills" 
-logs_path = PROJECT_ROOT / "logs" 
+#Paths
+PROJECT_ROOT = Path(__file__).parent.parent
+skills_path = PROJECT_ROOT / "skills"
+logs_path = PROJECT_ROOT / "logs"
 logs_path.mkdir(exist_ok=True)
 context_path = PROJECT_ROOT / "context"
 
-
 load_dotenv()
-
 client = Anthropic()
 
-# Loader functions
+#Loaders
+
 def load_skill(agent_name):
     skill_file = skills_path / f"{agent_name}_skill.md"
     if skill_file.exists():
@@ -41,7 +41,7 @@ def load_scratchpad(agent_name):
       return scratchpad_file.read_text()
    else:
       return ""
-###
+#Cost calculation
 
 def calculate_cost(model_name, input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens):
    million_tokens = 1000000
@@ -57,6 +57,8 @@ def calculate_cost(model_name, input_tokens, output_tokens, cache_creation_input
 
    return total_cost, input_cost, output_cost, cache_write_cost, cache_read_cost
 
+
+#Logging
 
 def log_call(agent_name, model,user_message, response_text, thinking_text, input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens, total_cost , latency):
    log_entry = {
@@ -80,12 +82,9 @@ def log_call(agent_name, model,user_message, response_text, thinking_text, input
 
 
 
-def scan_confidence_markers(text: str) -> dict:
-   """Layer 0: Scan agent output for confidence markers.
+#Confidence scanning
 
-   Returns a summary of VERIFIED, HIGH_CONFIDENCE, and RECALLED counts.
-   Used by Layer 4 (should_stop_pipeline) for halt decisions.
-   """
+def scan_confidence_markers(text: str) -> dict:
    verified = len(re.findall(r"\[VERIFIED\]", text, re.IGNORECASE))
    high_confidence = len(re.findall(
       r"\[HIGH.CONFIDENCE\]|HIGH.CONFIDENCE(?:\s*[—–-])", text, re.IGNORECASE
@@ -101,8 +100,9 @@ def scan_confidence_markers(text: str) -> dict:
    }
 
 
+#Serialization
+
 def _serialize_content(content_blocks):
-   """Convert response content blocks to serializable dicts for message history."""
    result = []
    for block in content_blocks:
       if block.type == "thinking":
@@ -121,6 +121,8 @@ def _serialize_content(content_blocks):
          })
    return result
 
+
+#Agent call
 
 def call_agent(agent_name, user_message, history=None, registry=None):
    if history is None:

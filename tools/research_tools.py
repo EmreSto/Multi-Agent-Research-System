@@ -1,23 +1,26 @@
 import json
 import logging
+import re
 import time
+from pathlib import Path
 
 import arxiv
-# import requests  # uncomment when enabling Semantic Scholar
-
+import fitz
 from tools.registry import ToolRegistry
 
+#Paths
+PROJECT_ROOT = Path(__file__).parent.parent
+SOURCES_DIR = PROJECT_ROOT / "sources"
 logger = logging.getLogger(__name__)
 
-# Shared client — rate limiting state (delay between requests) persists
-# across multiple tool calls within a session, preventing 429 floods.
+#Shared arXiv client
 _arxiv_client = arxiv.Client(
     page_size=50,         # match our max_results cap (default 100 is wasteful)
     delay_seconds=5.0,    # 5s between requests (arXiv requires ≥3s)
     num_retries=5,        # more retries for transient 429/503
 )
 
-# --- Tool schemas (Anthropic API format) ---
+#Schemas
 
 SEARCH_ARXIV_SCHEMA = {
     "name": "search_arxiv",
@@ -42,10 +45,9 @@ SEARCH_ARXIV_SCHEMA = {
     },
 }
 
-# --- Tool handlers ---
+#Handlers
 
 def search_arxiv(tool_input: dict) -> str:
-    """Search arXiv and return structured results."""
     query = tool_input["query"]
     max_results = min(tool_input.get("max_results", 10), 50)
 
@@ -57,9 +59,6 @@ def search_arxiv(tool_input: dict) -> str:
         sort_by=arxiv.SortCriterion.Relevance,
     )
 
-    # Application-level retry with exponential backoff.
-    # The arxiv library retries internally (5 attempts × 5s delay), but if
-    # arXiv is already rate-limiting us, we need longer backoff between rounds.
     max_retries = 3
     results = []
     for attempt in range(max_retries + 1):
@@ -102,114 +101,178 @@ def search_arxiv(tool_input: dict) -> str:
 
 
 
-# --- Semantic Scholar (commented out — enable when you have an API key or rate limit resets) ---
-#
-# SEARCH_SEMANTIC_SCHOLAR_SCHEMA = {
-#     "name": "search_semantic_scholar",
-#     "description": (
-#         "Search Semantic Scholar for academic papers. "
-#         "Covers arXiv, PubMed, ACL, and many other sources. "
-#         "More reliable than arXiv API (higher rate limits). "
-#         "Returns titles, authors, abstracts, citation counts, and PDF links."
-#     ),
-#     "input_schema": {
-#         "type": "object",
-#         "properties": {
-#             "query": {
-#                 "type": "string",
-#                 "description": "Search query — topic keywords or paper title.",
-#             },
-#             "max_results": {
-#                 "type": "integer",
-#                 "description": "Maximum number of results to return. Default 10, max 100.",
-#             },
-#         },
-#         "required": ["query"],
-#     },
-# }
-#
-#
-# def search_semantic_scholar(tool_input: dict) -> str:
-#     """Search Semantic Scholar and return structured results."""
-#     import requests
-#
-#     query = tool_input["query"]
-#     max_results = min(tool_input.get("max_results", 10), 100)
-#
-#     logger.info(f"search_semantic_scholar: query='{query}', max_results={max_results}")
-#
-#     url = "https://api.semanticscholar.org/graph/v1/paper/search"
-#     params = {
-#         "query": query,
-#         "limit": max_results,
-#         "fields": "title,authors,abstract,year,externalIds,url,citationCount,publicationDate,openAccessPdf",
-#     }
-#     headers = {"User-Agent": "ResearchCrew/0.1 (academic-research-tool)"}
-#
-#     max_retries = 3
-#     for attempt in range(max_retries + 1):
-#         try:
-#             resp = requests.get(url, params=params, headers=headers, timeout=30)
-#             resp.raise_for_status()
-#             break
-#         except requests.exceptions.HTTPError as e:
-#             if resp.status_code == 429 and attempt < max_retries:
-#                 backoff = 5 * (2 ** attempt)
-#                 logger.warning(
-#                     f"search_semantic_scholar: rate limited (attempt {attempt + 1}/{max_retries + 1}), "
-#                     f"retrying in {backoff}s"
-#                 )
-#                 time.sleep(backoff)
-#             else:
-#                 logger.error(f"search_semantic_scholar: API error: {e}")
-#                 return json.dumps({"error": "semantic_scholar_error", "message": str(e)})
-#         except requests.exceptions.RequestException as e:
-#             logger.error(f"search_semantic_scholar: request failed: {e}")
-#             return json.dumps({"error": "semantic_scholar_error", "message": str(e)})
-#
-#     data = resp.json()
-#     papers = data.get("data", [])
-#     if not papers:
-#         return json.dumps({"message": f"No papers found for query: '{query}'"})
-#
-#     results = []
-#     for paper in papers:
-#         external_ids = paper.get("externalIds") or {}
-#         arxiv_id = external_ids.get("ArXiv")
-#         pdf_url = None
-#         oap = paper.get("openAccessPdf")
-#         if oap:
-#             pdf_url = oap.get("url")
-#         elif arxiv_id:
-#             pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
-#         results.append({
-#             "title": paper.get("title"),
-#             "authors": [a["name"] for a in (paper.get("authors") or [])],
-#             "abstract": paper.get("abstract"),
-#             "published": paper.get("publicationDate"),
-#             "year": paper.get("year"),
-#             "citation_count": paper.get("citationCount"),
-#             "arxiv_id": arxiv_id,
-#             "pdf_url": pdf_url,
-#             "url": paper.get("url"),
-#         })
-#     return json.dumps(results, indent=2)
+PARSE_PDF_SCHEMA = {
+    "name": "parse_pdf",
+    "description": (
+        "Extract text from a PDF file in the sources/ directory. "
+        "Returns structured text with page markers for citation. "
+        "Use start_page/end_page to read in chunks if the paper is long. "
+        "Call list_sources first to see available PDFs."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "file_path": {
+                "type": "string",
+                "description": "Path to PDF file (e.g. 'sources/1011.6402v3.pdf').",
+            },
+            "start_page": {
+                "type": "integer",
+                "description": "First page to extract (0-indexed). Default: 0.",
+            },
+            "end_page": {
+                "type": "integer",
+                "description": "Last page to extract (exclusive). Default: all pages.",
+            },
+        },
+        "required": ["file_path"],
+    },
+}
+
+#Equation detection
+_MATH_OPERATORS = "∑∫∏∂∇∆√∞≈≠≤≥±∈∉⊂⊃∀∃∧∨¬⇒⇔←→↔"
+_GREEK_LETTERS = "αβγδεζηθικλμνξπρστυφχψω"
+_MATH_SYMBOLS = set(_MATH_OPERATORS + _GREEK_LETTERS)
+
+_LATEX_COMMANDS = (
+    "sum", "int", "frac", "partial", "nabla", "sqrt",
+    "infty", "approx", "leq", "geq", "pm", "in", "forall", "exists",
+)
+_LATEX_PATTERN = re.compile(r"\\(?:" + "|".join(_LATEX_COMMANDS) + r")")
+
+_ASSIGNMENT_PATTERN = re.compile(r"\b[A-Za-z]\s*[=<>≤≥]\s*")
 
 
-# --- Registration ---
+def _looks_like_equation(line: str) -> bool:
+    if any(ch in _MATH_SYMBOLS for ch in line):
+        return True
+    if _LATEX_PATTERN.search(line):
+        return True
+    if _ASSIGNMENT_PATTERN.search(line):
+        return True
+    return False
+
+
+def _tag_equations(text: str) -> str:
+    lines = text.split("\n")
+    tagged = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and len(stripped) < 200 and _looks_like_equation(stripped):
+            tagged.append(f"[EQUATION] {line}")
+        else:
+            tagged.append(line)
+    return "\n".join(tagged)
+
+
+def parse_pdf(tool_input: dict) -> str:
+    file_path = tool_input["file_path"]
+    start_page = tool_input.get("start_page", 0)
+
+    path = Path(file_path)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+
+    if not path.exists():
+        return json.dumps({"error": "file_not_found", "message": f"PDF not found: {file_path}"})
+
+    logger.info(f"parse_pdf: file='{path}', start_page={start_page}")
+
+    try:
+        doc = fitz.open(str(path))
+    except Exception as e:
+        return json.dumps({"error": "pdf_open_error", "message": str(e)})
+
+    total_pages = len(doc)
+    end_page = min(tool_input.get("end_page", total_pages), total_pages)
+
+    pages_text = []
+    for page_num in range(start_page, end_page):
+        page = doc[page_num]
+        text = page.get_text()
+        tagged = _tag_equations(text)
+        pages_text.append(f"\n--- Page {page_num + 1} ---\n{tagged}")
+
+    doc.close()
+
+    full_text = "\n".join(pages_text)
+
+    result = {
+        "file": str(path.name),
+        "total_pages": total_pages,
+        "pages_extracted": f"{start_page + 1}-{end_page}",
+        "total_chars": len(full_text),
+        "text": full_text,
+    }
+
+    if end_page < total_pages:
+        result["note"] = (
+            f"Showing pages {start_page + 1}-{end_page} of {total_pages}. "
+            f"Call parse_pdf again with start_page={end_page} to continue reading."
+        )
+
+    return json.dumps(result)
+
+
+LIST_SOURCES_SCHEMA = {
+    "name": "list_sources",
+    "description": (
+        "List available PDF files in the sources/ directory. "
+        "Call this first to see what papers are available before using parse_pdf."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {},
+    },
+}
+
+
+def list_sources(_tool_input: dict) -> str:
+    if not SOURCES_DIR.exists():
+        return json.dumps({"message": "No sources/ directory found."})
+
+    pdfs = sorted(SOURCES_DIR.glob("*.pdf"))
+    if not pdfs:
+        return json.dumps({"message": "No PDF files found in sources/."})
+
+    results = []
+    for pdf in pdfs:
+        size_kb = pdf.stat().st_size / 1024
+        try:
+            doc = fitz.open(str(pdf))
+            pages = len(doc)
+            doc.close()
+        except Exception:
+            pages = "unknown"
+
+        results.append({
+            "filename": pdf.name,
+            "path": f"sources/{pdf.name}",
+            "size_kb": round(size_kb, 1),
+            "pages": pages,
+        })
+
+    return json.dumps(results, indent=2)
+
+
+#Registration
 
 def register_research_tools(registry: ToolRegistry) -> None:
-    """Register all research tools with the registry."""
     registry.register(
         name="search_arxiv",
         schema=SEARCH_ARXIV_SCHEMA,
         handler=search_arxiv,
         category="research",
     )
-    # Uncomment to enable Semantic Scholar:
-    # registry.register(
-    #     name="search_semantic_scholar",
-    #     schema=SEARCH_SEMANTIC_SCHOLAR_SCHEMA,
-    #     handler=search_semantic_scholar,
-    #     category="research",
-    # )
+    registry.register(
+        name="parse_pdf",
+        schema=PARSE_PDF_SCHEMA,
+        handler=parse_pdf,
+        category="research",
+    )
+    registry.register(
+        name="list_sources",
+        schema=LIST_SOURCES_SCHEMA,
+        handler=list_sources,
+        category="research",
+    )
