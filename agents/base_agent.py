@@ -6,8 +6,9 @@ import datetime
 import os
 from dotenv import load_dotenv
 from pathlib import Path
-from anthropic import Anthropic
+from anthropic import Anthropic , RateLimitError
 from config.agent_config import MODELS, PRICING, AGENT_CONFIG
+from config.rate_limits import get_rate_limit_state, get_fallback_model
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,8 @@ logs_path.mkdir(exist_ok=True)
 context_path = PROJECT_ROOT / "context"
 
 load_dotenv()
-client = Anthropic()
+client = Anthropic(max_retries=3, timeout=120.0)
+
 
 #Loaders
 
@@ -121,6 +123,25 @@ def _serialize_content(content_blocks):
          })
    return result
 
+def _make_api_call(api_kwargs: dict) -> tuple:
+   rate_limit_state_model = get_rate_limit_state(api_kwargs["model"])
+   if rate_limit_state_model.should_pause():
+      time.sleep(rate_limit_state_model.pause_duration())
+   try:
+      raw = client.messages.with_raw_response.create(**api_kwargs)
+      rate_limit_state_model.update_from_headers(raw.headers)
+      parsed_response = raw.parse()
+      return (parsed_response, api_kwargs["model"])
+   except RateLimitError:
+      fall_back_model = get_fallback_model(api_kwargs["model"])
+      if fall_back_model is None:
+         raise
+      api_kwargs["model"] = fall_back_model
+      fallback_raw = client.messages.with_raw_response.create(**api_kwargs)
+      get_rate_limit_state(fall_back_model).update_from_headers(fallback_raw.headers)
+      fallback_response = fallback_raw.parse()
+      return(fallback_response, fall_back_model )
+
 
 #Agent call
 
@@ -176,7 +197,7 @@ def call_agent(agent_name, user_message, history=None, registry=None):
    max_iterations = config.get("max_tool_iterations", 10)
 
    start_time = time.time()
-   response = client.messages.create(**api_kwargs)
+   response ,model_used = _make_api_call(api_kwargs)
 
    while True:
       # Accumulate token usage from this iteration
@@ -223,18 +244,18 @@ def call_agent(agent_name, user_message, history=None, registry=None):
 
       # Next iteration
       api_kwargs["messages"] = messages
-      response = client.messages.create(**api_kwargs)
+      response , model_used = _make_api_call(api_kwargs)
 
    latency = time.time() - start_time
 
    # Calculate cumulative cost across all iterations
    total_cost, _, _, _, _ = calculate_cost(
-       config["model"], total_input_tokens, total_output_tokens,
+       model_used, total_input_tokens, total_output_tokens,
        total_cache_creation, total_cache_read
    )
 
    log_call(
-       agent_name, config["model"], user_message, response_text,
+       agent_name, model_used, user_message, response_text,
        thinking_text, total_input_tokens, total_output_tokens,
        total_cache_creation, total_cache_read,
        total_cost, latency
@@ -251,7 +272,7 @@ def call_agent(agent_name, user_message, history=None, registry=None):
       "text": response_text,
       "thinking": thinking_text,
       "history": messages,
-      "model": config["model"],
+      "model": model_used,
       "cost": total_cost,
       "latency": latency,
       "tool_iterations": iteration,
