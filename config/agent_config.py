@@ -88,8 +88,15 @@ RCS_CONFIG = {
     "top_k": 15,
     "max_workers": 5,
 }
-
 #Cost guardrails
 
 MONTHLY_BUDGET_USD = 30.0     
 PER_SESSION_WARN_USD = 2.0
+
+#Fallback chain
+
+FALLBACK_CHAIN={
+    MODELS["opus"]: MODELS["sonnet"],
+    MODELS["sonnet"]: MODELS["haiku"],
+    MODELS["haiku"]: None,
+}
