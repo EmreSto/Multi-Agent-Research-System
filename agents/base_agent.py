@@ -198,7 +198,7 @@ def call_agent(agent_name, user_message, history=None, registry=None):
    if config["thinking"]:
       api_kwargs["thinking"] = config["thinking"]
 
-   # Add tools if agent has tool categories and registry is provided
+   # Tools
    tools = []
    if registry and config.get("tool_categories"):
       tools = registry.get_tools_for_agent(agent_name)
@@ -206,7 +206,6 @@ def call_agent(agent_name, user_message, history=None, registry=None):
       api_kwargs["tools"] = tools
       api_kwargs["extra_headers"] = {"anthropic-beta": "token-efficient-tools-2025-02-19"}
 
-   # Track cumulative metrics across tool loop iterations
    total_input_tokens = 0
    total_output_tokens = 0
    total_cache_creation = 0
@@ -220,36 +219,31 @@ def call_agent(agent_name, user_message, history=None, registry=None):
    response ,model_used = _make_api_call(api_kwargs)
 
    while True:
-      # Accumulate token usage from this iteration
       usage = response.usage
       total_input_tokens += usage.input_tokens
       total_output_tokens += usage.output_tokens
       total_cache_creation += getattr(usage, "cache_creation_input_tokens", 0)
       total_cache_read += getattr(usage, "cache_read_input_tokens", 0)
 
-      # Extract text and thinking from this iteration
       for block in response.content:
          if block.type == "thinking":
             thinking_text += block.thinking
          elif block.type == "text":
             response_text += block.text
 
-      # Done if model didn't request tool use
       if response.stop_reason != "tool_use":
          if response.stop_reason == "max_tokens":
             logger.warning(f"Agent '{agent_name}' response truncated (max_tokens hit)")
          break
 
-      # Safety: check iteration limit
       iteration += 1
       if iteration >= max_iterations:
          logger.warning(f"Agent '{agent_name}' hit tool iteration limit ({max_iterations})")
          break
 
-      # Append assistant response (with tool_use blocks) to messages
       messages.append({"role": "assistant", "content": _serialize_content(response.content)})
 
-      # Execute all tool calls in this response (handles parallel tool use)
+      # Tool execution
       tool_results = []
       for block in response.content:
          if block.type == "tool_use":
@@ -262,13 +256,11 @@ def call_agent(agent_name, user_message, history=None, registry=None):
 
       messages.append({"role": "user", "content": tool_results})
 
-      # Next iteration
       api_kwargs["messages"] = messages
       response , model_used = _make_api_call(api_kwargs)
 
    latency = time.time() - start_time
 
-   # Calculate cumulative cost across all iterations
    total_cost, _, _, _, _ = calculate_cost(
        model_used, total_input_tokens, total_output_tokens,
        total_cache_creation, total_cache_read
@@ -281,7 +273,6 @@ def call_agent(agent_name, user_message, history=None, registry=None):
        total_cost, latency
    )
 
-   # Append final assistant message to history
    if iteration == 0:
       messages.append({"role": "assistant", "content": response_text})
    else:
