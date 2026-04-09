@@ -42,7 +42,7 @@ def _split_into_sections(markdown_text: str) -> list[Chunk]:
                     content = "\n".join(current_section),
                     has_equations=_contains_equation("\n".join(current_section)),
                     chunk_index=chunk_index,
-                    token_count=_estimate_tokens("\n".join(current_section)), 
+                    token_count=_estimate_tokens("\n".join(current_section)),
                 ))
                 chunk_index += 1
             current_name = name
@@ -96,4 +96,3 @@ def _subsplit_large_sections(sections: list[Chunk], max_tokens: int) -> list[Chu
 
 
 
-    
