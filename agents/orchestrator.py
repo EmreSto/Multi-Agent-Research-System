@@ -44,16 +44,11 @@ def check_simple_mode(user_message):
         return None, None
 
 def should_stop_pipeline(call_result):
-    """Layer 4: Check if pipeline should halt due to RECALLED claims.
-
-    Dual check: structured confidence_summary (primary) + regex fallback.
-    """
-    # Primary: use Layer 0 confidence summary from call_agent()
     summary = call_result.get("confidence_summary", {})
     if summary.get("has_recalled", False):
         return True
 
-    # Fallback: regex scan for RECALLED markers in raw text
+    # Regex fallback
     text = call_result.get("text", "")
     if re.search(r"\[RECALLED\b|RECALLED\s*[—–-]", text, re.IGNORECASE):
         return True
@@ -61,7 +56,6 @@ def should_stop_pipeline(call_result):
     return False
 
 def validate_routing_plan(routing_plan) -> tuple[bool, str]:
-    """Layer 8: Pre-dispatch validation of routing plan."""
     valid_agents = set(AGENT_CONFIG.keys()) - {"orchestrator"}
 
     for agent in routing_plan.agents:
@@ -71,7 +65,6 @@ def validate_routing_plan(routing_plan) -> tuple[bool, str]:
                 f"Valid agents: {sorted(valid_agents)}"
             )
 
-    # Hard rule: mathematician before statistician
     agents = routing_plan.agents
     if "mathematician" in agents and "statistician" in agents:
         if agents.index("mathematician") > agents.index("statistician"):
@@ -79,7 +72,6 @@ def validate_routing_plan(routing_plan) -> tuple[bool, str]:
                 "Routing rule violation: mathematician must run before statistician."
             )
 
-    # Hard rule: code_optimizer never runs alone
     if "code_optimizer" in agents and len(agents) == 1:
         return False, (
             "Routing rule violation: code_optimizer cannot run alone — "
@@ -96,7 +88,6 @@ def execute_query(user_message, registry=None):
 
     routing_plan = get_routing_plan(user_message)
 
-    # Layer 8: validate routing plan before dispatching
     valid, error_msg = validate_routing_plan(routing_plan)
     if not valid:
         return [{
@@ -135,7 +126,6 @@ def execute_query(user_message, registry=None):
             })
             break
 
-        # Layer 8: detect agent domain rejection
         if "[NOT MY DOMAIN]" in call_result.get("text", ""):
             results.append({
                 "agent": "system",
