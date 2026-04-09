@@ -12,11 +12,10 @@ logger = logging.getLogger(__name__)
 class ToolRegistry:
 
     def __init__(self):
-        self._tools: dict[str, dict[str, Any]] = {}       # name -> {schema, handler, category}
-        self._categories: dict[str, list[str]] = {}        # category -> [tool_names]
+        self._tools: dict[str, dict[str, Any]] = {}
+        self._categories: dict[str, list[str]] = {}
 
     def register(self, name: str, schema: dict, handler: Callable, category: str) -> None:
-        """Register a tool with its Anthropic API schema and handler function."""
         self._tools[name] = {
             "schema": schema,
             "handler": handler,
@@ -26,7 +25,6 @@ class ToolRegistry:
         logger.debug(f"Registered tool '{name}' in category '{category}'")
 
     def get_tools_for_agent(self, agent_name: str) -> list[dict]:
-        """Return list of Anthropic tool schemas for an agent based on its tool_categories."""
         categories = AGENT_CONFIG.get(agent_name, {}).get("tool_categories", [])
         tools = []
         for category in categories:
@@ -35,7 +33,6 @@ class ToolRegistry:
         return tools
 
     def execute(self, tool_name: str, tool_input: dict) -> str:
-        """Execute a tool by name. Returns result string or JSON error."""
         if tool_name not in self._tools:
             return json.dumps({
                 "error": "unknown_tool",
@@ -57,10 +54,8 @@ class ToolRegistry:
 
     @property
     def registered_tools(self) -> list[str]:
-        """List all registered tool names."""
         return list(self._tools.keys())
 
     @property
     def registered_categories(self) -> list[str]:
-        """List all registered categories."""
         return list(self._categories.keys())
