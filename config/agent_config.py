@@ -90,7 +90,7 @@ RCS_CONFIG = {
 }
 #Cost guardrails
 
-MONTHLY_BUDGET_USD = 30.0     
+MONTHLY_BUDGET_USD = 30.0
 PER_SESSION_WARN_USD = 2.0
 
 #Fallback chain
