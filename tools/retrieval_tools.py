@@ -124,7 +124,7 @@ def ingest_paper(tool_input: dict) -> str:
         return json.dumps({"status": "success", "paper_id": paper_id, "paper_title": title, "chunks_stored": count, "message": f"Paper '{title}' ingested successfully with {count} chunks."})
     except Exception as e:
         logging.error(f"Error processing paper {paper_id}: {str(e)}")
-        return json.dumps({"error": "ingestion_failed", "paper_id": paper_id, "message": f"Failed to ingest paper: {str(e)}"}) 
+        return json.dumps({"error": "ingestion_failed", "paper_id": paper_id, "message": f"Failed to ingest paper: {str(e)}"})
 
 #RCS scoring
 
@@ -246,7 +246,7 @@ def register_retrieval_tools(registry: ToolRegistry) -> None:
 
 
 
-    
 
-    
+
+
 
