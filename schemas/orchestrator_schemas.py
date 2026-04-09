@@ -18,9 +18,24 @@ class RoutingPlanSimple(BaseModel):
     reasoning: str
 
 
+class AgentTask(BaseModel):
+    agent: str
+    task: str
+
+class StageConfig(BaseModel):
+    agents: list[AgentTask]
+    batch_eligible: bool = False
+    pass_forward: bool = True
+    max_agents: int = 3
+
+class WorkflowPlan(BaseModel):
+    mode: Literal["workflow"]
+    reasoning: str
+    stages: list[StageConfig]
+    completion_criteria: str
+
+
 # Anti-hallucination Layer 0: Source anchoring
-# Every claim must carry source metadata. Schema validation
-# fails if required fields are missing — structural enforcement.
 class SourcedClaim(BaseModel):
     claim: str
     source_type: Literal["VERIFIED", "HIGH_CONFIDENCE", "RECALLED"]
