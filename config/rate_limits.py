@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timezone                                    
-import time 
+from datetime import datetime, timezone
+import time
 from config.agent_config import FALLBACK_CHAIN
 
 @dataclass
@@ -11,7 +11,7 @@ class RateLimitState:
     requests_remaining: int | None = None
     requests_limit: int | None = None
     requests_reset: str | None = None
-    last_updated: float = field(default_factory=time.time) 
+    last_updated: float = field(default_factory=time.time)
 
     def update_from_headers(self, headers):
        raw_tokens_remaining = headers.get("anthropic-ratelimit-tokens-remaining")
@@ -19,7 +19,7 @@ class RateLimitState:
            self.tokens_remaining = int(raw_tokens_remaining)
        raw_tokens_limit = headers.get("anthropic-ratelimit-tokens-limit")
        if raw_tokens_limit is not None:
-          self.tokens_limit = int(raw_tokens_limit) 
+          self.tokens_limit = int(raw_tokens_limit)
        self.tokens_reset = headers.get("anthropic-ratelimit-tokens-reset", self.tokens_reset)
        raw_requests_remaining = headers.get("anthropic-ratelimit-requests-remaining")
        if raw_requests_remaining is not None:
@@ -43,8 +43,8 @@ class RateLimitState:
             return min(60, max(0, timedelta.total_seconds()))
         else:
             return 0.0
- 
-            
+
+
 _rate_limit_states: dict[str, RateLimitState] = {}
 
 def get_rate_limit_state(model: str) -> RateLimitState:
@@ -54,6 +54,6 @@ def get_rate_limit_state(model: str) -> RateLimitState:
 
 def get_fallback_model(model: str) -> str | None:
     return FALLBACK_CHAIN.get(model)
-    
-    
+
+
 
