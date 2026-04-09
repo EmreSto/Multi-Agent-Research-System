@@ -11,7 +11,6 @@ from tools.retrieval_tools import register_retrieval_tools
 
 console = Console()
 
-# Initialize tool registry
 registry = ToolRegistry()
 register_research_tools(registry)
 register_retrieval_tools(registry)
