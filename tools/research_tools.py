@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 
 #Shared arXiv client
 _arxiv_client = arxiv.Client(
-    page_size=50,         # match our max_results cap (default 100 is wasteful)
-    delay_seconds=5.0,    # 5s between requests (arXiv requires ≥3s)
-    num_retries=5,        # more retries for transient 429/503
+    page_size=50,
+    delay_seconds=5.0,
+    num_retries=5,
 )
 
 #Schemas
@@ -75,10 +75,10 @@ def search_arxiv(tool_input: dict) -> str:
                     "pdf_url": paper.pdf_url,
                     "categories": paper.categories,
                 })
-            break  # Success
+            break
         except (arxiv.HTTPError, arxiv.UnexpectedEmptyPageError) as e:
             if attempt < max_retries:
-                backoff = 10 * (2 ** attempt)  # 10s, 20s, 40s
+                backoff = 10 * (2 ** attempt)
                 logger.warning(
                     f"search_arxiv: arXiv API error (attempt {attempt + 1}/{max_retries + 1}), "
                     f"retrying in {backoff}s: {e}"
