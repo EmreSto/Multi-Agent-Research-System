@@ -76,7 +76,7 @@ def main():
                         Markdown(result["text"]),
                         title=f"[bold]{result['agent']}[/bold]",
                         subtitle=f"${result['cost']:.4f} | {result['latency']:.1f}s",))
-                    
+
                     agent_histories[result["agent"]] = result.get("history", [])
 
                 elif isinstance(result, list):
@@ -85,7 +85,7 @@ def main():
                             Markdown(item["text"]),
                             title=f"[bold]{item['agent']}[/bold]",
                             subtitle=f"${item['cost']:.4f} | {item['latency']:.1f}s",))
-                        
+
                         agent_histories[item["agent"]] = item.get("history", [])
                 save_response_to_file(result)
 
