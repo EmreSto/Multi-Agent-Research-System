@@ -35,7 +35,6 @@ class WorkflowPlan(BaseModel):
     completion_criteria: str
 
 
-# Anti-hallucination Layer 0: Source anchoring
 class SourcedClaim(BaseModel):
     claim: str
     source_type: Literal["VERIFIED", "HIGH_CONFIDENCE", "RECALLED"]
