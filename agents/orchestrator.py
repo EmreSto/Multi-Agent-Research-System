@@ -42,7 +42,7 @@ def check_simple_mode(user_message):
             return None, None
     else:
         return None, None
-    
+
 def should_stop_pipeline(call_result):
     """Layer 4: Check if pipeline should halt due to RECALLED claims.
 
@@ -61,10 +61,7 @@ def should_stop_pipeline(call_result):
     return False
 
 def validate_routing_plan(routing_plan) -> tuple[bool, str]:
-    """Layer 8: Pre-dispatch validation of routing plan.
-
-    Checks agent existence and hard routing rules before any agent is called.
-    """
+    """Layer 8: Pre-dispatch validation of routing plan."""
     valid_agents = set(AGENT_CONFIG.keys()) - {"orchestrator"}
 
     for agent in routing_plan.agents:
