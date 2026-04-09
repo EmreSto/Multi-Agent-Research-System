@@ -11,6 +11,7 @@ from tools.registry import ToolRegistry
 #Paths
 PROJECT_ROOT = Path(__file__).parent.parent
 SOURCES_DIR = PROJECT_ROOT / "sources"
+SOURCES_DIR.mkdir(exist_ok=True)
 logger = logging.getLogger(__name__)
 
 #Shared arXiv client
@@ -228,9 +229,6 @@ LIST_SOURCES_SCHEMA = {
 
 
 def list_sources(_tool_input: dict) -> str:
-    if not SOURCES_DIR.exists():
-        return json.dumps({"message": "No sources/ directory found."})
-
     pdfs = sorted(SOURCES_DIR.glob("*.pdf"))
     if not pdfs:
         return json.dumps({"message": "No PDF files found in sources/."})
