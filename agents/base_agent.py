@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 from anthropic import Anthropic, AsyncAnthropic, RateLimitError
 from config.agent_config import PRICING, AGENT_CONFIG
-from config.rate_limits import get_rate_limit_state, get_fallback_model
+from config.rate_limits import get_rate_limit_state, get_fallback_model, get_rate_limit_lock
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,7 @@ def calculate_cost(model_name, input_tokens, output_tokens, cache_creation_input
    million_tokens = 1000000
    pricing = PRICING[model_name]
 
-   regular_input = input_tokens - cache_creation_input_tokens - cache_read_input_tokens
-   input_cost = (regular_input / million_tokens) * pricing["input"]
+   input_cost = (input_tokens / million_tokens) * pricing["input"]
    output_cost = (output_tokens / million_tokens) * pricing["output"]
    cache_write_cost = (cache_creation_input_tokens / million_tokens) * pricing["cache_write"]
    cache_read_cost = (cache_read_input_tokens / million_tokens) * pricing["cache_read"]
@@ -88,12 +87,14 @@ def log_call(agent_name, model,user_message, response_text, thinking_text, input
 #Confidence scanning
 
 def scan_confidence_markers(text: str) -> dict:
-   verified = len(re.findall(r"\[VERIFIED\]", text, re.IGNORECASE))
+   verified = len(re.findall(
+      r"\[VERIFIED\b[^\]]*\]", text, re.IGNORECASE
+   ))
    high_confidence = len(re.findall(
-      r"\[HIGH.CONFIDENCE\]|HIGH.CONFIDENCE(?:\s*[—–-])", text, re.IGNORECASE
+      r"\[HIGH.CONFIDENCE\b[^\]]*\]|HIGH.CONFIDENCE\s*[—–-]", text, re.IGNORECASE
    ))
    recalled = len(re.findall(
-      r"\[RECALLED\b|RECALLED\s*[—–-]", text, re.IGNORECASE
+      r"\[RECALLED\b[^\]]*\]|RECALLED\s*[—–-]", text, re.IGNORECASE
    ))
    return {
       "verified": verified,
@@ -144,23 +145,27 @@ def _make_api_call(api_kwargs: dict) -> tuple:
       return(fallback_response, fall_back_model )
 
 async def _make_api_call_async(api_kwargs: dict) -> tuple:
-   rate_limit_state_model = get_rate_limit_state(api_kwargs["model"])
-   if rate_limit_state_model.should_pause():
-      await asyncio.sleep(rate_limit_state_model.pause_duration())
+   model_name = api_kwargs["model"]
+   async with get_rate_limit_lock(model_name):
+      rate_limit_state_model = get_rate_limit_state(model_name)
+      if rate_limit_state_model.should_pause():
+         await asyncio.sleep(rate_limit_state_model.pause_duration())
    try:
       raw = await async_client.messages.with_raw_response.create(**api_kwargs)
-      rate_limit_state_model.update_from_headers(raw.headers)
+      async with get_rate_limit_lock(model_name):
+         rate_limit_state_model.update_from_headers(raw.headers)
       parsed_response = raw.parse()
-      return (parsed_response, api_kwargs["model"])
+      return (parsed_response, model_name)
    except RateLimitError:
-      fall_back_model = get_fallback_model(api_kwargs["model"])
+      fall_back_model = get_fallback_model(model_name)
       if fall_back_model is None:
          raise
       api_kwargs["model"] = fall_back_model
       fallback_raw = await async_client.messages.with_raw_response.create(**api_kwargs)
-      get_rate_limit_state(fall_back_model).update_from_headers(fallback_raw.headers)
+      async with get_rate_limit_lock(fall_back_model):
+         get_rate_limit_state(fall_back_model).update_from_headers(fallback_raw.headers)
       fallback_response = fallback_raw.parse()
-      return(fallback_response, fall_back_model)
+      return (fallback_response, fall_back_model)
 
 
 #Agent call
@@ -367,15 +372,15 @@ async def call_agent_async(agent_name, user_message, history=None, registry=None
 
       messages.append({"role": "assistant", "content": _serialize_content(response.content)})
 
-      tool_results = []
-      for block in response.content:
-         if block.type == "tool_use":
-            result = await asyncio.to_thread(registry.execute, block.name, block.input)
-            tool_results.append({
-               "type": "tool_result",
-               "tool_use_id": block.id,
-               "content": result,
-            })
+      tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
+      results = await asyncio.gather(*[
+         asyncio.to_thread(registry.execute, b.name, b.input)
+         for b in tool_use_blocks
+      ])
+      tool_results = [
+         {"type": "tool_result", "tool_use_id": b.id, "content": r}
+         for b, r in zip(tool_use_blocks, results)
+      ]
 
       messages.append({"role": "user", "content": tool_results})
 
