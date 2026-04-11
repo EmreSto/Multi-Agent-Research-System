@@ -71,7 +71,7 @@ Papers are chunked and stored in ChromaDB locally. On each query:
 | 1. Core engine (tool loop, ToolRegistry, arXiv search, anti-hallucination layers) | Done |
 | 2. Paper reading (PDF parsing, quote-then-claim, orchestrator routing, RECALLED halting) | Done |
 | 3. Vector DB + chunking (ChromaDB, equation-aware chunking, RCS scoring, retrieval) | Done |
-| 4. Verification pipeline (rate limits, model fallback, async agents, verification gates, workflow execution) | In progress |
+| 4. Verification pipeline (rate limits, model fallback, async agents, verification gates, workflow execution) | Done |
 | 5. Interactive teaching UI (Streamlit, visualizations, code exercises) | Planned |
 | 6. Polish and ship v0.1 | Planned |
 | 7. v0.2 (knowledge graph, batch API, advanced verification) | Planned |
