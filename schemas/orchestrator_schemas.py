@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Literal, Optional
+from pydantic import BaseModel, Field
+from typing import Annotated, Literal, Optional, Union
 
 class RoutingPlan(BaseModel):
     mode: Literal["routing"]
@@ -27,6 +27,7 @@ class StageConfig(BaseModel):
     batch_eligible: bool = False
     pass_forward: bool = True
     max_agents: int = 3
+    stage_type: Literal["standard", "code_math_verification"] = "standard"
 
 class WorkflowPlan(BaseModel):
     mode: Literal["workflow"]
@@ -42,3 +43,9 @@ class SourcedClaim(BaseModel):
     source_page: Optional[int] = None
     source_quote: Optional[str] = None
     confidence: float
+
+
+OrchestratorPlan = Annotated[
+    Union[RoutingPlanSimple, RoutingPlan, WorkflowPlan],
+    Field(discriminator="mode"),
+]

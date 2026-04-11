@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import time
@@ -54,6 +55,14 @@ def get_rate_limit_state(model: str) -> RateLimitState:
 
 def get_fallback_model(model: str) -> str | None:
     return FALLBACK_CHAIN.get(model)
+
+
+_rate_limit_locks: dict[str, asyncio.Lock] = {}
+
+def get_rate_limit_lock(model: str) -> asyncio.Lock:
+    if model not in _rate_limit_locks:
+        _rate_limit_locks[model] = asyncio.Lock()
+    return _rate_limit_locks[model]
 
 
 

@@ -32,7 +32,7 @@ PRICING = {
 
 AGENT_CONFIG = {
  "orchestrator":{
-   "model":MODELS["sonnet"],
+   "model":MODELS["haiku"],
    "max_tokens":2048,
    "thinking": None,
    "tool_categories": [],
