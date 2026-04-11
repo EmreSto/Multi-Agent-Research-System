@@ -1,5 +1,8 @@
+import asyncio
+
 from agents.base_agent import call_agent
 from agents.orchestrator import check_simple_mode, execute_query
+from agents.verification_gates import GateResult
 from tools import ToolRegistry
 from tools.research_tools import register_research_tools
 from rich.console import Console
@@ -8,12 +11,39 @@ from rich.markdown import Markdown
 from time import time
 from pathlib import Path
 from tools.retrieval_tools import register_retrieval_tools
+from tools.visualization_tools import register_visualization_tools
 
 console = Console()
 
 registry = ToolRegistry()
 register_research_tools(registry)
 register_retrieval_tools(registry)
+register_visualization_tools(registry)
+
+
+async def cli_checkpoint_fn(
+    stage_idx: int,
+    stage_results: list[dict],
+    gate_summary: GateResult,
+) -> bool:
+    console.print(f"\n[bold cyan]=== Stage {stage_idx + 1} complete ===[/bold cyan]\n")
+
+    for r in stage_results:
+        console.print(Panel(
+            Markdown(r.get("text", "")),
+            title=f"[bold]{r.get('agent', 'unknown')}[/bold]",
+            subtitle=f"${r.get('cost', 0):.4f} | {r.get('latency', 0):.1f}s",
+        ))
+
+    if gate_summary.severity == "warning":
+        console.print(f"\n[yellow]Gate warnings:[/yellow] {gate_summary.message}")
+    elif gate_summary.severity == "error":
+        console.print(f"\n[red]Gate errors:[/red] {gate_summary.message}")
+
+    response = await asyncio.to_thread(
+        input, f"\nApprove stage {stage_idx + 1} and continue? [y/n]: "
+    )
+    return response.strip().lower().startswith("y")
 
 def save_response_to_file(response):
     output_dir = Path("outputs")
@@ -69,7 +99,11 @@ def main():
                     result = call_agent(agent, follow_up, agent_histories[agent], registry=registry)
 
             else:
-                result = execute_query(user_input, registry=registry)
+                result = execute_query(
+                    user_input,
+                    registry=registry,
+                    checkpoint_fn=cli_checkpoint_fn,
+                )
                 if isinstance(result, dict):
                     console.print(Panel(
                         Markdown(result["text"]),

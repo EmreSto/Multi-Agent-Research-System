@@ -1,6 +1,6 @@
 .env
 logs/
-context/scratchpads/
+context/
 __pycache__/
 *.pyc
 .venv/
