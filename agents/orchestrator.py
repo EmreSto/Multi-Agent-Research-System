@@ -1,12 +1,6 @@
-import asyncio
-import json
-import re
-
-from anthropic import Anthropic
-from dotenv import load_dotenv
 from pydantic import TypeAdapter
 
-from agents.base_agent import call_agent, load_skill
+from agents.base_agent import call_agent_async, load_skill
 from agents.verification_gates import (
     check_domain_boundary,
     check_recalled_claims,
@@ -15,45 +9,63 @@ from agents.verification_gates import (
     validate_upstream_reference,
 )
 from config.agent_config import AGENT_CONFIG
-from schemas.orchestrator_schemas import OrchestratorPlan
+from config.clients import async_client
+from schemas.orchestrator_schemas import (
+    OrchestratorPlan,
+    RoutingPlan,
+    RoutingPlanSimple,
+    WorkflowPlan,
+)
 
-
-load_dotenv()
-
-client = Anthropic(max_retries=3, timeout=120.0)
 
 _plan_adapter = TypeAdapter(OrchestratorPlan)
 
 
-def _extract_json(text: str) -> dict:
-    text = text.strip()
+EMIT_SIMPLE_PLAN_TOOL = {
+    "name": "emit_simple_plan",
+    "description": (
+        "Emit a simple plan: route the query to exactly one specialist agent "
+        "with no downstream dependencies. Use when one agent can fully answer "
+        "(e.g. '@mathematician verify this proof', or 'teach me attention from "
+        "this paper' where Teacher alone suffices)."
+    ),
+    "input_schema": RoutingPlanSimple.model_json_schema(),
+}
 
-    match = re.search(r"```(?:json)?\s*\n(.*?)\n```", text, re.DOTALL)
-    if match:
-        return json.loads(match.group(1).strip())
+EMIT_ROUTING_PLAN_TOOL = {
+    "name": "emit_routing_plan",
+    "description": (
+        "Emit a routing plan: 2-3 agents run in sequence and the query "
+        "completes in one pass with no user checkpoint between them. Use for "
+        "queries like 'Derive this attention formula and implement it' "
+        "(mathematician -> ml_engineer) or 'Teach me this method then code it' "
+        "(teacher -> ml_engineer)."
+    ),
+    "input_schema": RoutingPlan.model_json_schema(),
+}
 
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
+EMIT_WORKFLOW_PLAN_TOOL = {
+    "name": "emit_workflow_plan",
+    "description": (
+        "Emit a workflow plan: multiple stages with a user checkpoint between "
+        "each. Within a stage, agents may run in parallel. Use for multi-phase "
+        "requests like 'Teach me this paper and then implement the methodology.'"
+    ),
+    "input_schema": WorkflowPlan.model_json_schema(),
+}
 
-    start = text.find("{")
-    if start != -1:
-        decoder = json.JSONDecoder()
-        try:
-            obj, _ = decoder.raw_decode(text[start:])
-            return obj
-        except json.JSONDecodeError:
-            pass
-
-    raise json.JSONDecodeError("no JSON object found in orchestrator response", text, 0)
+PLAN_TOOLS = [
+    EMIT_SIMPLE_PLAN_TOOL,
+    EMIT_ROUTING_PLAN_TOOL,
+    EMIT_WORKFLOW_PLAN_TOOL,
+]
 
 
-def get_plan(user_message):
+async def get_plan(user_message):
     skill = load_skill("orchestrator")
     agent_config = AGENT_CONFIG["orchestrator"]
 
-    response = client.messages.create(
+    response = await async_client.messages.create(
         model=agent_config["model"],
         max_tokens=agent_config["max_tokens"],
         system=[
@@ -66,11 +78,20 @@ def get_plan(user_message):
         messages=[
             {"role": "user", "content": user_message}
         ],
+        tools=PLAN_TOOLS,
+        tool_choice={"type": "any"},
     )
 
-    raw_text = response.content[0].text
-    plan_json = _extract_json(raw_text)
-    return _plan_adapter.validate_python(plan_json)
+    tool_use_block = next(
+        (b for b in response.content if b.type == "tool_use"),
+        None,
+    )
+    if tool_use_block is None:
+        raise RuntimeError(
+            "orchestrator did not emit a plan tool_use block; "
+            f"stop_reason={response.stop_reason}"
+        )
+    return _plan_adapter.validate_python(tool_use_block.input)
 
 
 def check_simple_mode(user_message):
@@ -102,7 +123,7 @@ def _system_message(text: str, confidence: dict | None = None) -> dict:
     }
 
 
-def _execute_routing(plan, user_message, registry):
+async def _execute_routing(plan, user_message, registry):
     plan_gate = validate_routing_plan(plan)
     if not plan_gate.passed:
         return [_system_message(f"Routing validation failed: {plan_gate.message}")]
@@ -110,7 +131,7 @@ def _execute_routing(plan, user_message, registry):
     results = []
     prev_text = None
     for agent in plan.agents:
-        call_result = call_agent(agent, user_message, registry=registry)
+        call_result = await call_agent_async(agent, user_message, registry=registry)
         results.append(call_result)
 
         gates = [
@@ -156,19 +177,19 @@ def _execute_routing(plan, user_message, registry):
     return results
 
 
-def execute_query(user_message, registry=None, checkpoint_fn=None):
+async def execute_query(user_message, registry=None, checkpoint_fn=None):
     query, agent_name = check_simple_mode(user_message)
     if agent_name:
-        return call_agent(agent_name, query, registry=registry)
+        return await call_agent_async(agent_name, query, registry=registry)
 
-    plan = get_plan(user_message)
+    plan = await get_plan(user_message)
 
     if plan.mode == "simple":
-        return call_agent(plan.agent, user_message, registry=registry)
+        return await call_agent_async(plan.agent, user_message, registry=registry)
     if plan.mode == "routing":
-        return _execute_routing(plan, user_message, registry)
+        return await _execute_routing(plan, user_message, registry)
     if plan.mode == "workflow":
         from agents.workflow_executor import execute_workflow
-        return asyncio.run(execute_workflow(plan, registry, checkpoint_fn))
+        return await execute_workflow(plan, registry, checkpoint_fn)
 
     return [_system_message(f"Unknown plan mode: {plan.mode}")]
