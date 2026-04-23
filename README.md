@@ -1,8 +1,8 @@
 # Multi-Agent Research System
 
-AI agents that teach you academic papers, implement methodologies, and verify each other's work. Built on the Anthropic API with a custom orchestrator.
+Read deep learning papers with AI agents that ground every claim in the source, halt when uncertain, and cite by section and page.
 
-**You don't just get answers, you get understanding.** The system teaches you the paper while building the implementation. By the end, you understand the methodology AND have working code. The pipeline stops when uncertain. Reliability > speed > comprehensiveness.
+Built on the Anthropic API. No external agent frameworks.
 
 ## Quick start
 
@@ -11,72 +11,82 @@ git clone https://github.com/EmreSto/Multi-Agent-Research-System.git
 cd Multi-Agent-Research-System
 pip install -r requirements.txt
 cp .env.example .env
-# Add your Anthropic API key to .env
+# paste your Anthropic API key into .env
 python main.py
 ```
 
-Requires Python 3.11+ and an [Anthropic API key](https://console.anthropic.com/).
+Requires Python 3.11 or newer and an [Anthropic API key](https://console.anthropic.com/).
 
 ## Usage
 
-**Simple mode** - talk directly to an agent with `@`:
+Three modes. The Orchestrator picks one for you, or you can force simple mode by addressing an agent directly.
+
+**Simple.** Talk to a specific agent.
+
 ```
-@teacher Teach me the attention mechanism from Vaswani et al. 2017
-@mathematician Verify this loss function derivation
+@teacher Explain scaled dot-product attention from the Transformer paper.
+@mathematician Verify this gradient derivation.
 ```
 
-**Query mode** - let the orchestrator decide which agents to use:
+**Routing.** Two or three agents in sequence, one pass.
+
 ```
-Is my transformer implementation mathematically correct and statistically validated?
+Derive the backward pass of layer normalization and implement it in PyTorch.
 ```
 
-Multi-turn conversations supported in simple mode. Type `exit` to leave.
+**Workflow.** Multi-stage with a user checkpoint between each stage.
+
+```
+Teach me the Adam optimizer and implement it from scratch.
+```
+
+Type `exit` to leave. Multi-turn conversations are supported in simple mode.
 
 ## Agents
 
-| Agent | Model | What it does |
-|-------|-------|-------------|
-| Orchestrator | Haiku | Routes queries, validates plans, synthesizes outputs |
-| Teacher | Opus | Teaches papers, briefs other agents on methodology |
-| Mathematician | Opus | Verifies mathematical correctness |
-| Statistician | Opus | Validates statistical methodology |
-| ML Engineer | Sonnet | Implements validated formulations as code |
-| Domain Expert | Sonnet | Market reality checks, economic interpretation |
-| Code Optimizer | Haiku | Profiles and optimizes existing code |
+| Agent | Model | Role |
+|---|---|---|
+| orchestrator | Haiku | Routes queries, emits structured plans via tool calls |
+| teacher | Opus | Reads papers, teaches the user, briefs other agents |
+| mathematician | Opus | Verifies derivations, gradient flow, attention math |
+| ml_engineer | Sonnet | Translates verified formulations into code |
 
-Agents never talk to each other directly. All communication flows through the Orchestrator (hub-and-spoke).
+Agents never talk to each other directly. All communication flows through the Orchestrator (hub and spoke).
 
 ## Anti-hallucination
 
-Every claim carries a confidence tag:
+Every substantive claim carries a confidence tag:
 
-- **[VERIFIED]** - supported by a quote from the paper. Flows freely
-- **[HIGH CONFIDENCE]** - implied by paper context. Flows with warning
-- **[RECALLED]** - from training data only. **Halts the pipeline**
+- `[VERIFIED]` direct quote from a retrieved chunk. Flows freely.
+- `[HIGH_CONFIDENCE]` implied by retrieved chunks but no exact quote. Flows with a warning.
+- `[RECALLED]` from training knowledge only, not grounded in any retrieved source. Halts the pipeline.
 
-6 layers implemented across source anchoring, quote-then-claim prompting, RCS relevance scoring, equation-aware chunking, verification gates, and routing validation. 4 more layers planned.
+Six layers implemented: source anchoring via Pydantic schemas, quote-then-claim prompting, RCS relevance scoring, equation-aware chunking with page numbers, cross-agent verification gates, routing validation.
 
 ## Retrieval pipeline
 
-Papers are chunked and stored in ChromaDB locally. On each query:
+Papers are chunked by section (equation-aware, page numbers preserved) and stored in ChromaDB locally. On every query:
 
-1. Chroma returns top 15 chunks by semantic similarity
-2. Haiku scores each chunk 1-10 in parallel, filters below 7
-3. Teacher gets compressed summaries instead of raw text (~5-8k tokens per turn instead of 25-30k)
+1. Chroma returns the top 15 chunks by semantic similarity.
+2. Haiku scores each chunk 0 to 10 via a structured `emit_score` tool call. Chunks below 7 are dropped.
+3. Every surviving chunk keeps its `raw_text`. Teacher quotes `raw_text` for `[VERIFIED]` claims.
+4. Chunks are reordered so the highest scored land at the start and end of context.
 
-## Build status
+Rate limiting: Haiku scoring runs in a thread pool with a shared throttle (40 RPM ceiling) and exponential-backoff retry on 429.
 
-| Phase | Status |
-|-------|--------|
-| 1. Core engine (tool loop, ToolRegistry, arXiv search, anti-hallucination layers) | Done |
-| 2. Paper reading (PDF parsing, quote-then-claim, orchestrator routing, RECALLED halting) | Done |
-| 3. Vector DB + chunking (ChromaDB, equation-aware chunking, RCS scoring, retrieval) | Done |
-| 4. Verification pipeline (rate limits, model fallback, async agents, verification gates, workflow execution) | Done |
-| 5. Interactive teaching UI (Streamlit, visualizations, code exercises) | Planned |
-| 6. Polish and ship v0.1 | Planned |
-| 7. v0.2 (knowledge graph, batch API, advanced verification) | Planned |
+## Evals
 
-> **Note:** Some agents reference tool categories that aren't built yet (code_execution, finance, memory, visualization). This doesn't break anything. Agents work fine without them, they just won't have tool use until those categories are registered.
+A small gold-labeled harness lives in `evals/`.
+
+```bash
+python -m evals.runner <run_name>
+python -m evals.metrics evals/results/<run_name>.json
+python -m evals.metrics --diff evals/results/<baseline>.json evals/results/<current>.json
+```
+
+Measures grounding precision, retrieval recall at 7, trap halt rate, and false VERIFIED rate against gold claims in `evals/papers/`. The `--diff` form exits non zero when a monotone up metric drops more than one percentage point or the false VERIFIED rate rises by more than one point.
+
+A RECALLED halt regression test lives at `evals/regression_recalled.py`.
 
 ## License
 
