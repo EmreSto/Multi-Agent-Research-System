@@ -12,3 +12,8 @@ sources/
 tools/tests/
 .claude/
 evals/results/
+
+# Private strategy/planning docs — never push
+ASSESSMENT.md
+FRONTEND_PLAN.md
+PRODUCT_VISION.md

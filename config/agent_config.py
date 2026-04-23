@@ -45,31 +45,10 @@ AGENT_CONFIG = {
   "tool_categories": [],
   "max_tool_iterations": 5,
  },
- "statistician":{
-  "model":MODELS["opus"],
-  "max_tokens":8192,
-  "thinking":{"type":"adaptive"},
-  "tool_categories": ["code_execution"],
-  "max_tool_iterations": 10,
- },
  "ml_engineer":{
   "model":MODELS["sonnet"],
   "max_tokens":4096,
   "thinking":None,
-  "tool_categories": ["code_execution", "finance"],
-  "max_tool_iterations": 10,
- },
- "domain_expert":{
-  "model":MODELS["sonnet"],
-  "max_tokens":4096,
-  "thinking":{"type":"adaptive"},
-  "tool_categories": [],
-  "max_tool_iterations": 5,
- },
- "code_optimizer":{
-  "model":MODELS["haiku"],
-  "max_tokens":2048,
-  "thinking": None,
   "tool_categories": ["code_execution"],
   "max_tool_iterations": 10,
  },
@@ -86,7 +65,7 @@ RCS_CONFIG = {
     "summary_length": 200,
     "relevance_threshold": 7,
     "top_k": 15,
-    "max_workers": 5,
+    "max_workers": 2,
 }
 #Cost guardrails
 
