@@ -69,10 +69,12 @@ def create_visualization(tool_input: dict) -> str:
     return json.dumps({
         "viz_id": viz_id,
         "viz_type": tool_input.get("viz_type"),
-        "status": "noop_cli",
+        "error": "renderer_unavailable",
         "message": (
-            "Visualization received but cannot be rendered in the CLI. "
-            "Use the web UI to see rendered visualizations."
+            "No visualization renderer is available in this context (CLI mode). "
+            "Describe the visualization in text — what the user would see, "
+            "the axes, the relationships — with enough detail that they can "
+            "picture it."
         ),
     })
 
