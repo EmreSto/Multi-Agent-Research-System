@@ -1,0 +1,160 @@
+{
+  "paper_id": "1706.03762v7",
+  "paper_title": "Attention Is All You Need",
+  "source_file": "sources/1706.03762v7.pdf",
+  "notes": "Gold claims for ResearchCrew evals harness. gold_quote_fragments are case-insensitive substrings that Teacher's output should contain. gold_section is matched as a substring against a retrieved chunk's section_name.",
+  "claims": [
+    {
+      "id": "c1",
+      "query": "What is the formula for scaled dot-product attention in the Transformer?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["softmax", "sqrt", "d_k"],
+      "gold_section": "Scaled Dot-Product Attention",
+      "gold_page": 4
+    },
+    {
+      "id": "c2",
+      "query": "How many attention heads are used in the base Transformer model?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["8"],
+      "gold_section": "Multi-Head Attention",
+      "gold_page": 5
+    },
+    {
+      "id": "c3",
+      "query": "What dimension d_k is used per attention head in the base Transformer?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["64"],
+      "gold_section": "Multi-Head Attention",
+      "gold_page": 5
+    },
+    {
+      "id": "c4",
+      "query": "How are positional encodings computed in the Transformer?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["sin", "cos", "10000"],
+      "gold_section": "Positional Encoding",
+      "gold_page": 6
+    },
+    {
+      "id": "c5",
+      "query": "What is the dimensionality of the inner feed-forward layer d_ff in the base Transformer?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["2048"],
+      "gold_section": "Feed-Forward",
+      "gold_page": 5
+    },
+    {
+      "id": "c6",
+      "query": "How many encoder and decoder layers does the base Transformer have?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["6"],
+      "gold_section": "Encoder",
+      "gold_page": 3
+    },
+    {
+      "id": "c7",
+      "query": "What residual dropout rate is used on sub-layer outputs in the base Transformer?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["0.1", "dropout"],
+      "gold_section": "Regularization",
+      "gold_page": 7
+    },
+    {
+      "id": "c8",
+      "query": "Which optimizer is used to train the Transformer, and what are its beta values?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["Adam", "0.9", "0.98"],
+      "gold_section": "Optimizer",
+      "gold_page": 7
+    },
+    {
+      "id": "c9",
+      "query": "How many warmup steps are used in the Transformer's learning rate schedule?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["4000", "warmup"],
+      "gold_section": "Optimizer",
+      "gold_page": 7
+    },
+    {
+      "id": "c10",
+      "query": "What hardware was used to train the Transformer models?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["P100"],
+      "gold_section": "Hardware",
+      "gold_page": 7
+    },
+    {
+      "id": "c11",
+      "query": "What BLEU score does the big Transformer achieve on WMT 2014 English-to-German?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["28.4"],
+      "gold_section": "Machine Translation",
+      "gold_page": 8
+    },
+    {
+      "id": "c12",
+      "query": "What label smoothing value is used when training the Transformer?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["0.1", "label smoothing"],
+      "gold_section": "Regularization",
+      "gold_page": 7
+    },
+    {
+      "id": "c13",
+      "query": "On which training datasets was the Transformer evaluated?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["WMT 2014"],
+      "gold_section": "Training Data",
+      "gold_page": 7
+    },
+    {
+      "id": "c14",
+      "query": "What is the advantage of self-attention over recurrent layers in terms of sequential operations?",
+      "expected_confidence": "HIGH_CONFIDENCE",
+      "gold_quote_fragments": ["sequential"],
+      "gold_section": "Self-Attention",
+      "gold_page": 6
+    },
+    {
+      "id": "c15",
+      "query": "What beam size and length penalty are used during translation inference?",
+      "expected_confidence": "VERIFIED",
+      "gold_quote_fragments": ["4", "0.6"],
+      "gold_section": "Machine Translation",
+      "gold_page": 8
+    }
+  ],
+  "traps": [
+    {
+      "id": "t1",
+      "query": "What accuracy does the Transformer achieve on ImageNet classification?",
+      "should_tag": "RECALLED",
+      "notes": "The paper is about machine translation on WMT datasets. ImageNet is not mentioned anywhere in the paper."
+    },
+    {
+      "id": "t2",
+      "query": "How does the Transformer compare to BERT on the GLUE benchmark?",
+      "should_tag": "RECALLED",
+      "notes": "BERT and GLUE both post-date this paper (2017). Not mentioned."
+    },
+    {
+      "id": "t3",
+      "query": "What is the Transformer's performance when pretrained on the Common Crawl dataset?",
+      "should_tag": "RECALLED",
+      "notes": "The paper trains on WMT 2014 EN-DE and EN-FR translation pairs. Common Crawl pretraining is later practice."
+    },
+    {
+      "id": "t4",
+      "query": "How many parameters does the Transformer have compared to GPT-3?",
+      "should_tag": "RECALLED",
+      "notes": "GPT-3 (2020) post-dates this paper. The comparison is anachronistic and not in the text."
+    },
+    {
+      "id": "t5",
+      "query": "Does the Transformer use rotary position embeddings (RoPE)?",
+      "should_tag": "RECALLED",
+      "notes": "The paper uses sinusoidal absolute positional encodings. RoPE is a later innovation (Su et al., 2021)."
+    }
+  ]
+}
