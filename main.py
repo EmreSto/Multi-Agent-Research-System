@@ -1,6 +1,6 @@
 import asyncio
 
-from agents.base_agent import call_agent
+from agents.base_agent import call_agent_async
 from agents.orchestrator import check_simple_mode, execute_query
 from agents.verification_gates import GateResult
 from tools import ToolRegistry
@@ -69,7 +69,7 @@ def save_response_to_file(response):
 
     console.print(f"[dim]Saved to {filename}[/dim]")
 
-def main():
+async def main():
     agent_histories = {}
 
     while True:
@@ -82,7 +82,7 @@ def main():
             if user_input.startswith("@"):
                 query, agent = check_simple_mode(user_input)
                 history = agent_histories.get(agent, [])
-                result = call_agent(agent, query, history, registry=registry)
+                result = await call_agent_async(agent, query, history, registry=registry)
 
                 while True:
                     console.print(Panel(
@@ -96,10 +96,10 @@ def main():
                     if follow_up.lower() == "exit":
                         break
 
-                    result = call_agent(agent, follow_up, agent_histories[agent], registry=registry)
+                    result = await call_agent_async(agent, follow_up, agent_histories[agent], registry=registry)
 
             else:
-                result = execute_query(
+                result = await execute_query(
                     user_input,
                     registry=registry,
                     checkpoint_fn=cli_checkpoint_fn,
@@ -126,4 +126,4 @@ def main():
             console.print(f"[red]Error: {e}[/red]")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
