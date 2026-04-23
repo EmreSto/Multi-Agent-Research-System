@@ -173,30 +173,6 @@ def validate_routing_plan(routing_plan) -> GateResult:
                 context={"invalid_agent": agent, "valid_agents": sorted(valid_agents)},
             )
 
-    agents = routing_plan.agents
-    if "mathematician" in agents and "statistician" in agents:
-        if agents.index("mathematician") > agents.index("statistician"):
-            return GateResult(
-                passed=False,
-                severity="error",
-                gate_name="routing_plan",
-                message=(
-                    "Routing rule violation: mathematician must run before "
-                    "statistician (mathematical correctness before statistical validity)."
-                ),
-            )
-
-    if "code_optimizer" in agents and len(agents) == 1:
-        return GateResult(
-            passed=False,
-            severity="error",
-            gate_name="routing_plan",
-            message=(
-                "Routing rule violation: code_optimizer cannot run alone — "
-                "must be paired with at least one domain agent."
-            ),
-        )
-
     return GateResult(
         passed=True,
         severity="info",

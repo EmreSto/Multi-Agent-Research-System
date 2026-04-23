@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Awaitable, Callable
 
-from anthropic import AsyncAnthropic, RateLimitError
+from anthropic import RateLimitError
 
 from agents.base_agent import call_agent_async
 from agents.verification_gates import (
@@ -15,13 +15,12 @@ from agents.verification_gates import (
     run_all_gates,
 )
 from config.agent_config import MODELS
+from config.clients import async_client as _compress_client
 from schemas.orchestrator_schemas import StageConfig, WorkflowPlan
 from tools.registry import ToolRegistry
 
 
 logger = logging.getLogger(__name__)
-
-_compress_client = AsyncAnthropic(max_retries=3, timeout=120.0)
 
 
 #Input size guarding
@@ -187,12 +186,19 @@ async def execute_workflow(
 
     results: list[dict] = []
     accumulated: list[dict] = []
+    override_tasks: list[str] | None = None
 
     for stage_idx, stage in enumerate(workflow_plan.stages):
-        tasks = [
-            call_agent_async(at.agent, at.task, registry=registry)
-            for at in stage.agents
-        ]
+        if override_tasks is not None:
+            tasks = [
+                call_agent_async(at.agent, task, registry=registry)
+                for at, task in zip(stage.agents, override_tasks)
+            ]
+        else:
+            tasks = [
+                call_agent_async(at.agent, at.task, registry=registry)
+                for at in stage.agents
+            ]
         stage_results = await asyncio.gather(*tasks)
 
         stage_gate_results = [
@@ -220,20 +226,20 @@ async def execute_workflow(
             ))
             return results
 
+        override_tasks = None
         if stage_idx + 1 < len(workflow_plan.stages):
             next_stage = workflow_plan.stages[stage_idx + 1]
             if next_stage.stage_type == "code_math_verification":
                 code_math_task = _build_code_math_task(accumulated)
-                for at in next_stage.agents:
-                    at.task = code_math_task
+                override_tasks = [code_math_task for _ in next_stage.agents]
             elif stage.pass_forward:
                 compressed = await compress_handoff(stage_results, next_stage)
-                for at in next_stage.agents:
-                    at.task = (
-                        at.task
-                        + "\n\n<upstream_output>\n"
-                        + compressed
-                        + "\n</upstream_output>"
-                    )
+                override_tasks = [
+                    at.task
+                    + "\n\n<upstream_output>\n"
+                    + compressed
+                    + "\n</upstream_output>"
+                    for at in next_stage.agents
+                ]
 
     return results

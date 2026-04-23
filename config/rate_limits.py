@@ -30,20 +30,26 @@ class RateLimitState:
            self.requests_limit = int(raw_requests_limit)
        self.requests_reset = headers.get("anthropic-ratelimit-requests-reset", self.requests_reset)
        self.last_updated = time.time()
-    def should_pause(self, token_threshold = 0.1) -> bool:
+    def should_pause(self, threshold: float = 0.1) -> bool:
         if self.tokens_remaining is not None and self.tokens_limit is not None:
-            if self.tokens_remaining / self.tokens_limit < token_threshold:
+            if self.tokens_remaining / self.tokens_limit < threshold:
+                return True
+        if self.requests_remaining is not None and self.requests_limit is not None:
+            if self.requests_remaining / self.requests_limit < threshold:
                 return True
         return False
 
     def pause_duration(self) -> float:
-        if self.tokens_reset is not None:
-            reset_time = datetime.fromisoformat(self.tokens_reset)
+        candidates = []
+        for reset_iso in (self.tokens_reset, self.requests_reset):
+            if reset_iso is None:
+                continue
+            reset_time = datetime.fromisoformat(reset_iso)
             now = datetime.now(timezone.utc)
-            timedelta = reset_time - now
-            return min(60, max(0, timedelta.total_seconds()))
-        else:
+            candidates.append((reset_time - now).total_seconds())
+        if not candidates:
             return 0.0
+        return min(60, max(0, max(candidates)))
 
 
 _rate_limit_states: dict[str, RateLimitState] = {}
