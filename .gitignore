@@ -11,3 +11,4 @@ data/
 sources/
 tools/tests/
 .claude/
+evals/results/
